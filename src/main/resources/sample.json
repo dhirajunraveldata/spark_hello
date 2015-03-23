@@ -1,0 +1,18 @@
+{
+  "database": "delme1",
+  "retentionPolicy": "mypolicy",
+  "points": [
+    {
+
+      "name": "#METRIC#",
+      "tags": {
+        "region":"#REGION#",
+        "host": "server#NUM#"
+      },
+      "fields":{
+        "value": #VAL#
+      }
+    }
+  ]
+}
+
