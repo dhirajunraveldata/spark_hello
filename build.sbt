@@ -13,7 +13,9 @@ libraryDependencies +=  "org.scalaj" %% "scalaj-http" % "1.1.4"
 
 libraryDependencies += "org.apache.spark" %% "spark-core" % "1.3.0"
 
+resolvers += "justwrote" at "http://repo.justwrote.it/releases/"
 
+libraryDependencies += "it.justwrote" %% "scala-faker" % "0.3"
 
 mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) => {
   case PathList("javax", "pom.properties", xs@_*) => MergeStrategy.first
