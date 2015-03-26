@@ -15,6 +15,7 @@ object PetFoodAnalysis {
   /** faking type classes **/
   type Breed = String
   type Gender = String
+  val enableSample: Boolean = true
 
   case class Puppy(ownerId: Long, name: String, breed: Breed, age: Int)
 
@@ -23,7 +24,14 @@ object PetFoodAnalysis {
   case class PetFoodPurchase(ownerId: Long, brand: String)
 
   def main(args: Array[String]) {
+    performTask()
+    performTask()
+  }
 
+  def performTask() {
+
+    println("Starting performTask :::")
+    val time = scala.compat.Platform.currentTime
 
     var pw = new PrintWriter(new File("/opt/unravel/data/sample_data.txt"))
 
@@ -33,7 +41,7 @@ object PetFoodAnalysis {
       .setMaster("local[4]")
       .setAppName("PetFoodAnalysis")
       .set("spark.executor.memory", "4g")
-      .set("spark.metrics.conf","/Users/dhiraj/Documents/my_experiment/spark/conf/metrics.properties")
+      .set("spark.metrics.conf", "/Users/dhiraj/Documents/my_experiment/spark/conf/metrics.properties")
 
     val sc = new SparkContext(conf)
 
@@ -43,9 +51,20 @@ object PetFoodAnalysis {
     val hdfsPetFoodInput = "/opt/unravel/data/pet_food_data.csv"
 
     val rawPuppies = sc.textFile(hdfsPuppyDataInput)
+    if (enableSample) {
+      val rawPuppiesSample = rawPuppies.takeSample(false, 10)
+      pw.write("rawPuppiesSample :: " + rawPuppiesSample.toList + "\n\n\n\n")
+    }
     val rawOwners = sc.textFile(hdfsOwnerDataInput)
+    if (enableSample) {
+      val rawOwnersSample = rawOwners.takeSample(false, 10)
+      pw.write("rawOwnersSample :: " + rawOwnersSample.toList + "\n\n\n\n")
+    }
     val rawPetFood = sc.textFile(hdfsPetFoodInput)
-
+    if (enableSample) {
+      val rawPetFoodSample = rawPetFood.takeSample(false, 10)
+      pw.write("rawPetFoodSample :: " + rawPetFoodSample.toList + "\n\n\n\n")
+    }
     val puppies = rawPuppies.map { pup =>
       pup.split(",") match {
         case Array(id, n, t, a) => Puppy(id.toLong, n, t, a.toInt)
@@ -67,48 +86,75 @@ object PetFoodAnalysis {
       }
     }
 
-    val huskiesUnderTwoById = puppies.filter(p => (p.age < 3)).keyBy(_.ownerId)
-    val huskiesUnderTwoByIdSample = huskiesUnderTwoById.takeSample(false, 10)
-    pw.write("huskiesUnderTwoByIdSample :: "+huskiesUnderTwoByIdSample.toList + "\n")
+    val huskiesUnderTwoByIdfilter1: RDD[Puppy] = puppies.filter(p => (p.age < 2))
+    val huskiesUnderTwoById = huskiesUnderTwoByIdfilter1.keyBy(_.ownerId)
 
-    val ownersUnderTenById = owners.filter(o => o.age < 10).keyBy(_.id)
-    val ownersUnderTenByIdSample = ownersUnderTenById.takeSample(false, 10)
-    pw.write("ownersUnderTenByIdSample :: "+ownersUnderTenByIdSample.toList + "\n")
+    if (enableSample) {
+      val huskiesUnderTwoByIdSample = huskiesUnderTwoById.takeSample(false, 10)
+      pw.write("huskiesUnderTwoByIdSample :: " + huskiesUnderTwoByIdSample.toList + "\n\n\n\n")
+    }
 
+    val ownersUnderTenByIdfilter1: RDD[Owner] = owners.filter(o => o.age < 10)
+    val ownersUnderTenById = ownersUnderTenByIdfilter1.keyBy(_.id)
 
-    val friskiesById = petFood.filter(f => f.brand == "Friskies").keyBy(_.ownerId)
-    val friskiesByIdSample = friskiesById.takeSample(false, 10)
-    pw.write("friskiesByIdSample :: "+friskiesByIdSample.toList + "\n")
+    if (enableSample) {
+      val ownersUnderTenByIdSample = ownersUnderTenById.takeSample(false, 10)
+      pw.write("ownersUnderTenByIdSample :: " + ownersUnderTenByIdSample.toList + "\n\n\n\n")
+    }
 
+    val friskiesByIdfilter1: RDD[PetFoodPurchase] = petFood.filter(f => f.brand == "Friskies")
+    val friskiesById = friskiesByIdfilter1.keyBy(_.ownerId)
+
+    if (enableSample) {
+      val friskiesByIdSample = friskiesById.takeSample(false, 10)
+      pw.write("friskiesByIdSample :: " + friskiesByIdSample.toList + "\n\n\n\n")
+    }
 
 
     val cogroup: RDD[(Long, (Iterable[Puppy], Iterable[Owner], Iterable[PetFoodPurchase]))] = huskiesUnderTwoById.cogroup(ownersUnderTenById, friskiesById)
-    val cogroupSample = cogroup.takeSample(false,10)
-    pw.write("cogroupSample :: "+cogroupSample.toList + "\n")
 
+    if (enableSample) {
+      val cogroupSample = cogroup.takeSample(false, 10)
+      pw.write("cogroupSample :: " + cogroupSample.toList + "\n\n\n\n")
+    }
 
     val rdd: RDD[(Option[PetFoodPurchase], Option[Owner], Int)] = cogroup.map {
       case (id, (iterHuskies, iterOwners, iterPetFood)) => {
-        (iterPetFood.headOption, iterOwners.headOption, iterHuskies.map(_.age).sum + iterHuskies.size)
+        (iterPetFood.headOption, iterOwners.headOption, if (iterHuskies.size == 0) 0 else iterHuskies.map(_.age).sum / iterHuskies.size)
       }
     }
 
-    val rddSample = rdd.takeSample(false, 2)
-    pw.write("rddSample :: "+rddSample.toList + "\n")
-
+    if (enableSample) {
+      val rddSample = rdd.takeSample(false, 2)
+      pw.write("rddSample :: " + rddSample.toList + "\n\n\n\n")
+    }
 
     val filter = rdd.filter(res => (res._1 != None) && (res._2 != None))
-    val filterSample = filter.takeSample(false, 10)
+    if (enableSample) {
+      val filterSample = filter.takeSample(false, 10)
+      pw.write("filterSample :: " + filterSample.toList + "\n\n\n\n")
+    }
 
 
     val averageAgeHuskies =
       filter.map(res => (res._2, 1))
-    val averageAgeHuskiesSample = averageAgeHuskies.takeSample(false, 10)
-    pw.write("averageAgeHuskiesSample :: "+averageAgeHuskiesSample.toList + "\n")
+
+
+    if (enableSample) {
+      val averageAgeHuskiesSample = averageAgeHuskies.takeSample(false, 10)
+      pw.write("averageAgeHuskiesSample :: " + averageAgeHuskiesSample.toList + "\n\n\n\n")
+    }
+
     pw.close()
 
     val hdfsOutputPath = "/opt/unravel/data/average_husky_age"
 
     averageAgeHuskies.reduceByKey(_ + _).saveAsTextFile(hdfsOutputPath)
+
+    val endTime = scala.compat.Platform.currentTime
+
+    println("total time : " + (endTime - time))
+
+
   }
 }
